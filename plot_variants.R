@@ -24,7 +24,12 @@ topics_raw <- read_csv(topics_url, show_col_types = FALSE)
 
 speeches <- speeches_raw %>%
   arrange(year) %>%
-  mutate(speech_label = paste0(year, "  ", str_to_title(speech_type)))
+  mutate(
+    speech_label = make.unique(
+      paste0(year, "  ", str_to_title(speech_type)),
+      sep = " · "
+    )
+  )
 
 speech_levels <- speeches$speech_label
 
