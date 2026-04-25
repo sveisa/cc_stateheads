@@ -243,7 +243,58 @@ p_density <- ggplot(cc_sampled, aes(x = samples, y = period, fill = period)) +
     plot.margin      = margin(18, 18, 14, 18)
   )
 
-# ── 7. Save ──────────────────────────────────────────────────────────────────
+# ── 7. Single-period pages (one hi-res PNG per period, for slides) ───────────
+
+make_single_page <- function(per) {
+  pb   <- period_bins %>% filter(period == per)
+  meta <- pages %>% filter(period == per)
+
+  ggplot() +
+    annotate("rect",
+             xmin = 0, xmax = 1, ymin = 0, ymax = N_BINS,
+             fill = PAGE_BG, color = PAPER_BORDER, linewidth = 0.4) +
+    geom_segment(
+      data = pb,
+      aes(x = LINE_X0, xend = LINE_X1,
+          y = bin - 0.5, yend = bin - 0.5),
+      color = BG_COL, linewidth = 1.6, lineend = "butt"
+    ) +
+    geom_segment(
+      data = pb %>% filter(pct_cc > 0),
+      aes(x = LINE_X0, xend = cc_x1,
+          y = bin - 0.5, yend = bin - 0.5),
+      color = CC_COL, linewidth = 1.6, lineend = "butt"
+    ) +
+    scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +
+    scale_x_continuous(expand = expansion(add = 0)) +
+    coord_fixed(ratio = 1 / N_BINS * 1.4) +
+    labs(
+      title    = as.character(per),
+      subtitle = sprintf("%d speeches · %d paragraphs · %.1f%% about climate change",
+                         meta$n_speeches, meta$n_grafs, meta$pct_cc_grafs),
+      caption  = "Top of page = start of speech.  Line length = share of words at that position about climate change."
+    ) +
+    theme_void(base_family = "Georgia") +
+    theme(
+      plot.title      = element_text(size = 22, color = "gray10",
+                                     margin = margin(b = 4), face = "bold"),
+      plot.subtitle   = element_text(size = 12, color = "gray45",
+                                     margin = margin(b = 18)),
+      plot.caption    = element_text(size = 9, color = "gray60", hjust = 0,
+                                     margin = margin(t = 14)),
+      plot.margin     = margin(28, 28, 22, 28),
+      plot.background = element_rect(fill = PAGE_BG, color = NA)
+    )
+}
+
+for (per in period_labels) {
+  fname <- paste0("cc_page_", gsub("[–-]", "_", per), ".png")
+  ggsave(fname, make_single_page(per),
+         width = 6, height = 8, dpi = 300, bg = PAGE_BG)
+  message("Saved: ", fname)
+}
+
+# ── 8. Save combined views ───────────────────────────────────────────────────
 
 ggsave("cc_pages_by_period.png",   p_pages,   width = 9, height = 7,   dpi = 300, bg = PAGE_BG)
 ggsave("cc_density_by_period.png", p_density, width = 9, height = 4.5, dpi = 300, bg = PAGE_BG)
