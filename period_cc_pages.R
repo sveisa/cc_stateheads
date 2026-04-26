@@ -160,14 +160,14 @@ p_pages <- ggplot() +
     data = period_bins,
     aes(x = LINE_X0, xend = LINE_X1,
         y = bin - 0.5, yend = bin - 0.5),
-    color = BG_COL, linewidth = 1.1, lineend = "butt"
+    color = BG_COL, linewidth = 6.6, lineend = "butt"
   ) +
   # Green segment overlay = CC share
   geom_segment(
     data = period_bins %>% filter(pct_cc > 0),
     aes(x = LINE_X0, xend = cc_x1,
         y = bin - 0.5, yend = bin - 0.5),
-    color = CC_COL, linewidth = 1.1, lineend = "butt"
+    color = CC_COL, linewidth = 6.6, lineend = "butt"
   ) +
   scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +   # top = start
   scale_x_continuous(expand = expansion(add = 0)) +
@@ -257,13 +257,13 @@ make_single_page <- function(per) {
       data = pb,
       aes(x = LINE_X0, xend = LINE_X1,
           y = bin - 0.5, yend = bin - 0.5),
-      color = BG_COL, linewidth = 1.6, lineend = "butt"
+      color = BG_COL, linewidth = 9.6, lineend = "butt"
     ) +
     geom_segment(
       data = pb %>% filter(pct_cc > 0),
       aes(x = LINE_X0, xend = cc_x1,
           y = bin - 0.5, yend = bin - 0.5),
-      color = CC_COL, linewidth = 1.6, lineend = "butt"
+      color = CC_COL, linewidth = 9.6, lineend = "butt"
     ) +
     scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +
     scale_x_continuous(expand = expansion(add = 0)) +
