@@ -34,7 +34,7 @@ period_breaks <- c(1997, 2007, 2016)
 period_max    <- 2024     # upper bound of last period (inclusive)
 
 N_BINS  <- 10             # vertical "lines" per page
-ROW_GAP <- 0.08           # whitespace between lines (0 = none, 0.5 = half row)
+ROW_GAP <- 0.02           # whitespace between lines (0 = none, 0.5 = half row)
 CC_COL  <- "#175E54"      # forest green (matches your React palette)
 BG_COL  <- "#e5e7eb"      # light gray for non-CC line backing
 PAGE_BG <- "#fdfdfc"      # paper colour
