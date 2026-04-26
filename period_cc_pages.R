@@ -34,6 +34,7 @@ period_breaks <- c(1997, 2007, 2016)
 period_max    <- 2024     # upper bound of last period (inclusive)
 
 N_BINS  <- 10             # vertical "lines" per page
+ROW_GAP <- 0.08           # whitespace between lines (0 = none, 0.5 = half row)
 CC_COL  <- "#175E54"      # forest green (matches your React palette)
 BG_COL  <- "#e5e7eb"      # light gray for non-CC line backing
 PAGE_BG <- "#fdfdfc"      # paper colour
@@ -156,18 +157,18 @@ p_pages <- ggplot() +
     fill = PAGE_BG, color = PAPER_BORDER, linewidth = 0.3
   ) +
   # Background gray line for every bin (full width)
-  geom_segment(
+  geom_rect(
     data = period_bins,
-    aes(x = LINE_X0, xend = LINE_X1,
-        y = bin - 0.5, yend = bin - 0.5),
-    color = BG_COL, linewidth = 6.6, lineend = "butt"
+    aes(xmin = LINE_X0, xmax = LINE_X1,
+        ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
+    fill = BG_COL
   ) +
   # Green segment overlay = CC share
-  geom_segment(
+  geom_rect(
     data = period_bins %>% filter(pct_cc > 0),
-    aes(x = LINE_X0, xend = cc_x1,
-        y = bin - 0.5, yend = bin - 0.5),
-    color = CC_COL, linewidth = 6.6, lineend = "butt"
+    aes(xmin = LINE_X0, xmax = cc_x1,
+        ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
+    fill = CC_COL
   ) +
   scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +   # top = start
   scale_x_continuous(expand = expansion(add = 0)) +
@@ -253,17 +254,17 @@ make_single_page <- function(per) {
     annotate("rect",
              xmin = 0, xmax = 1, ymin = 0, ymax = N_BINS,
              fill = PAGE_BG, color = PAPER_BORDER, linewidth = 0.4) +
-    geom_segment(
+    geom_rect(
       data = pb,
-      aes(x = LINE_X0, xend = LINE_X1,
-          y = bin - 0.5, yend = bin - 0.5),
-      color = BG_COL, linewidth = 9.6, lineend = "butt"
+      aes(xmin = LINE_X0, xmax = LINE_X1,
+          ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
+      fill = BG_COL
     ) +
-    geom_segment(
+    geom_rect(
       data = pb %>% filter(pct_cc > 0),
-      aes(x = LINE_X0, xend = cc_x1,
-          y = bin - 0.5, yend = bin - 0.5),
-      color = CC_COL, linewidth = 9.6, lineend = "butt"
+      aes(xmin = LINE_X0, xmax = cc_x1,
+          ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
+      fill = CC_COL
     ) +
     scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +
     scale_x_continuous(expand = expansion(add = 0)) +
