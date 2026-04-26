@@ -35,8 +35,9 @@ period_max    <- 2024     # upper bound of last period (inclusive)
 
 N_BINS  <- 10             # vertical "lines" per page
 ROW_GAP <- 0.02           # whitespace between lines (0 = none, 0.5 = half row)
-CC_COL  <- "#175E54"      # forest green (matches your React palette)
-BG_COL  <- "#e5e7eb"      # light gray for non-CC line backing
+CC_COL      <- "#175E54"  # forest green: climate change (drawn from the LEFT)
+CRISIS_COL  <- "#8C1515"  # deep red:    local crisis   (drawn from the RIGHT)
+BG_COL      <- "#e5e7eb"  # light gray for line backing
 PAGE_BG <- "#fdfdfc"      # paper colour
 PAPER_BORDER <- "#cfcfcf"
 
@@ -46,10 +47,13 @@ df_raw <- read_csv(CSV_URL, show_col_types = FALSE)
 
 df <- df_raw %>%
   mutate(
-    graf_num = as.integer(str_extract(graf_id, "(?<=graf)\\d+")),
-    about_cc = as.integer(about_cc),
-    wc       = as.integer(wc),
-    year     = as.integer(year)
+    graf_num   = as.integer(str_extract(graf_id, "(?<=graf)\\d+")),
+    about_cc   = as.integer(about_cc),
+    wc         = as.integer(wc),
+    year       = as.integer(year),
+    # Local-crisis flag: paragraphs tagged is_crisis == "yes" that are NOT CC
+    # (so the two categories on the page are mutually exclusive).
+    is_crisis_bin = as.integer(is_crisis == "yes" & about_cc == 0)
   ) %>%
   arrange(speech_id, graf_num) %>%
   group_by(speech_id) %>%
@@ -85,8 +89,11 @@ freq <- df %>%
     n_speeches_with_cc = n_distinct(speech_id[about_cc == 1]),
     n_grafs            = n(),
     n_cc_grafs         = sum(about_cc),
-    pct_cc_grafs       = n_cc_grafs / n_grafs * 100,
-    pct_cc_words       = sum(wc[about_cc == 1]) / sum(wc) * 100,
+    n_crisis_grafs     = sum(is_crisis_bin),
+    pct_cc_grafs       = n_cc_grafs     / n_grafs * 100,
+    pct_crisis_grafs   = n_crisis_grafs / n_grafs * 100,
+    pct_cc_words       = sum(wc[about_cc == 1])      / sum(wc) * 100,
+    pct_crisis_words   = sum(wc[is_crisis_bin == 1]) / sum(wc) * 100,
     pct_speeches_cc    = n_speeches_with_cc / n_speeches * 100,
     .groups = "drop"
   )
@@ -98,7 +105,7 @@ print(freq)
 bin_edges <- seq(0, 1, length.out = N_BINS + 1)
 
 graf_bins <- df %>%
-  select(period, speech_id, graf_id, pos_start, pos_end, wc, about_cc) %>%
+  select(period, speech_id, graf_id, pos_start, pos_end, wc, about_cc, is_crisis_bin) %>%
   rowwise() %>%
   do({
     g <- .
@@ -106,10 +113,11 @@ graf_bins <- df %>%
     overlap <- pmax(0, pmin(g$pos_end, bin_edges[-1]) -
                        pmax(g$pos_start, bin_edges[-length(bin_edges)]))
     tibble(
-      period   = g$period,
-      bin      = seq_len(N_BINS),
-      words    = overlap / span * g$wc,
-      cc_words = overlap / span * g$wc * g$about_cc
+      period       = g$period,
+      bin          = seq_len(N_BINS),
+      words        = overlap / span * g$wc,
+      cc_words     = overlap / span * g$wc * g$about_cc,
+      crisis_words = overlap / span * g$wc * g$is_crisis_bin
     )
   }) %>%
   ungroup()
@@ -117,12 +125,14 @@ graf_bins <- df %>%
 period_bins <- graf_bins %>%
   group_by(period, bin) %>%
   summarise(
-    words    = sum(words),
-    cc_words = sum(cc_words),
+    words        = sum(words),
+    cc_words     = sum(cc_words),
+    crisis_words = sum(crisis_words),
     .groups  = "drop"
   ) %>%
   mutate(
-    pct_cc = ifelse(words > 0, cc_words / words, 0),
+    pct_cc     = ifelse(words > 0, cc_words     / words, 0),
+    pct_crisis = ifelse(words > 0, crisis_words / words, 0),
     bin_top    = bin - 1,            # 0..N_BINS-1, top = start of speech
     bin_bottom = bin
   )
@@ -137,15 +147,37 @@ LINE_LEN <- LINE_X1 - LINE_X0
 
 period_bins <- period_bins %>%
   mutate(
-    cc_x1 = LINE_X0 + LINE_LEN * pct_cc
+    cc_x1     = LINE_X0 + LINE_LEN * pct_cc,
+    crisis_x0 = LINE_X1 - LINE_LEN * pct_crisis
   )
+
+# Long-format bin data so we can use a single geom_rect with a fill legend.
+plot_bins <- bind_rows(
+  period_bins %>%
+    transmute(period, bin,
+              category = "Climate change",
+              xmin = LINE_X0,
+              xmax = cc_x1,
+              pct  = pct_cc),
+  period_bins %>%
+    transmute(period, bin,
+              category = "Local crisis",
+              xmin = crisis_x0,
+              xmax = LINE_X1,
+              pct  = pct_crisis)
+) %>%
+  mutate(category = factor(category,
+                           levels = c("Climate change", "Local crisis"))) %>%
+  filter(pct > 0)
+
+cat_pal <- c("Climate change" = CC_COL, "Local crisis" = CRISIS_COL)
 
 # Page outlines
 pages <- freq %>%
   mutate(
     label = sprintf(
-      "%s\n%d speeches · %d¶ · %.1f%% CC",
-      period, n_speeches, n_grafs, pct_cc_grafs
+      "%s\n%d speeches · %d paragraphs\n%.1f%% CC  ·  %.1f%% local crisis",
+      period, n_speeches, n_grafs, pct_cc_grafs, pct_crisis_grafs
     )
   )
 
@@ -163,33 +195,39 @@ p_pages <- ggplot() +
         ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
     fill = BG_COL
   ) +
-  # Green segment overlay = CC share
+  # CC (left) + Local crisis (right) overlays, both keyed to the legend
   geom_rect(
-    data = period_bins %>% filter(pct_cc > 0),
-    aes(xmin = LINE_X0, xmax = cc_x1,
-        ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
-    fill = CC_COL
+    data = plot_bins,
+    aes(xmin = xmin, xmax = xmax,
+        ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP,
+        fill = category)
   ) +
+  scale_fill_manual(values = cat_pal, name = NULL) +
   scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +   # top = start
   scale_x_continuous(expand = expansion(add = 0)) +
   facet_wrap(~ period, nrow = 1,
              labeller = as_labeller(setNames(pages$label, pages$period))) +
   coord_fixed(ratio = 1 / N_BINS * 1.4) +
+  guides(fill = guide_legend(override.aes = list(color = NA))) +
   labs(
-    title    = "Climate change in speeches: how often, and where in the speech",
-    subtitle = "Each 'page' = one period. Top of page = start of a speech, bottom = end.\nLine length at each row = share of words at that relative position that are about climate change.",
+    title    = "Climate change vs. local crisis in speeches: how often, and where",
+    subtitle = "Each 'page' = one period. Top = speech start, bottom = speech end.\nGreen grows from the LEFT = share of words at that position about climate change.\nRed grows from the RIGHT = share about a local crisis (excluding CC paragraphs).",
     caption  = sprintf("N = %d paragraphs, %d speeches, %d–%d", nrow(df),
                        n_distinct(df$speech_id), min(df$year), max(df$year))
   ) +
   theme_void(base_family = "Georgia") +
   theme(
+    legend.position    = "top",
+    legend.justification = c(0, 1),
+    legend.margin      = margin(0, 0, 6, 0),
+    legend.text        = element_text(size = 9, color = "gray25"),
     plot.title       = element_text(size = 13, color = "gray10",
                                     margin = margin(b = 4)),
     plot.subtitle    = element_text(size = 9.5, color = "gray45",
                                     margin = margin(b = 14), lineheight = 1.2),
     plot.caption     = element_text(size = 8, color = "gray60", hjust = 0,
                                     margin = margin(t = 10)),
-    strip.text       = element_text(size = 10, color = "gray15", lineheight = 1.2,
+    strip.text       = element_text(size = 9.5, color = "gray15", lineheight = 1.2,
                                     margin = margin(b = 8)),
     panel.spacing.x  = unit(1.2, "lines"),
     plot.margin      = margin(18, 18, 14, 18),
@@ -198,39 +236,47 @@ p_pages <- ggplot() +
 
 # ── 6. Plot 2: position density of CC paragraphs (sanity / bimodality) ───────
 
-cc_grafs <- df %>%
-  filter(about_cc == 1) %>%
-  select(period, speech_id, graf_id, pos_mid, pos_start, pos_end, wc)
+cat_grafs <- bind_rows(
+  df %>% filter(about_cc == 1) %>%
+    mutate(category = "Climate change"),
+  df %>% filter(is_crisis_bin == 1) %>%
+    mutate(category = "Local crisis")
+) %>%
+  mutate(category = factor(category, levels = c("Climate change","Local crisis"))) %>%
+  select(period, category, speech_id, graf_id, pos_start, pos_end, wc)
 
-# Sample points within each CC paragraph's [pos_start, pos_end], one per ~10 words,
-# so longer CC paragraphs contribute proportional density.
+# Sample points within each paragraph's [pos_start, pos_end], one per ~10 words,
+# so longer paragraphs contribute proportional density.
 set.seed(1)
-cc_sampled <- cc_grafs %>%
+cc_sampled <- cat_grafs %>%
   rowwise() %>%
   mutate(samples = list(runif(max(1, round(wc / 10)), pos_start, pos_end))) %>%
   unnest(samples) %>%
   ungroup()
 
-p_density <- ggplot(cc_sampled, aes(x = samples, y = period, fill = period)) +
+p_density <- ggplot(cc_sampled, aes(x = samples, y = period, fill = category)) +
   geom_density_ridges(
     bandwidth = 0.04, scale = 0.95, color = "white",
     rel_min_height = 0.005, alpha = 0.85
   ) +
+  facet_wrap(~ category, nrow = 1) +
   scale_x_continuous(
     breaks = c(0, 0.25, 0.5, 0.75, 1),
     labels = c("start", "25%", "middle", "75%", "end"),
     expand = expansion(add = 0.01)
   ) +
   scale_y_discrete(limits = rev) +
-  scale_fill_manual(values = rep(CC_COL, length(period_labels))) +
+  scale_fill_manual(values = cat_pal) +
   labs(
-    title    = "Where in a speech does climate change appear?",
-    subtitle = "Density of CC paragraphs by relative position (weighted by word count).\nA flat-with-bumps shape at start AND end signals bookend placement; a single hump in the middle would signal centre placement.",
+    title    = "Where in a speech do climate change and local-crisis paragraphs appear?",
+    subtitle = "Density by relative position, weighted by word count.\nBumps at the start AND end signal bookend placement; a single hump in the middle would signal centre placement.",
     x = NULL, y = NULL
   ) +
   theme_minimal(base_family = "Georgia", base_size = 11) +
   theme(
     legend.position  = "none",
+    strip.text       = element_text(size = 10, color = "gray15",
+                                    margin = margin(b = 6)),
     plot.title       = element_text(size = 13, color = "gray10",
                                     margin = margin(b = 4)),
     plot.subtitle    = element_text(size = 9.5, color = "gray45",
@@ -248,6 +294,7 @@ p_density <- ggplot(cc_sampled, aes(x = samples, y = period, fill = period)) +
 
 make_single_page <- function(per) {
   pb   <- period_bins %>% filter(period == per)
+  pb_long <- plot_bins %>% filter(period == per)
   meta <- pages %>% filter(period == per)
 
   ggplot() +
@@ -261,22 +308,29 @@ make_single_page <- function(per) {
       fill = BG_COL
     ) +
     geom_rect(
-      data = pb %>% filter(pct_cc > 0),
-      aes(xmin = LINE_X0, xmax = cc_x1,
-          ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
-      fill = CC_COL
+      data = pb_long,
+      aes(xmin = xmin, xmax = xmax,
+          ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP,
+          fill = category)
     ) +
+    scale_fill_manual(values = cat_pal, name = NULL) +
     scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +
     scale_x_continuous(expand = expansion(add = 0)) +
     coord_fixed(ratio = 1 / N_BINS * 1.4) +
+    guides(fill = guide_legend(override.aes = list(color = NA))) +
     labs(
       title    = as.character(per),
-      subtitle = sprintf("%d speeches · %d paragraphs · %.1f%% about climate change",
-                         meta$n_speeches, meta$n_grafs, meta$pct_cc_grafs),
-      caption  = "Top of page = start of speech.  Line length = share of words at that position about climate change."
+      subtitle = sprintf("%d speeches · %d paragraphs · %.1f%% CC · %.1f%% local crisis",
+                         meta$n_speeches, meta$n_grafs,
+                         meta$pct_cc_grafs, meta$pct_crisis_grafs),
+      caption  = "Top = speech start. Green from left = climate change. Red from right = local crisis."
     ) +
     theme_void(base_family = "Georgia") +
     theme(
+      legend.position = "top",
+      legend.justification = c(0, 1),
+      legend.text     = element_text(size = 11, color = "gray25"),
+      legend.margin   = margin(0, 0, 8, 0),
       plot.title      = element_text(size = 22, color = "gray10",
                                      margin = margin(b = 4), face = "bold"),
       plot.subtitle   = element_text(size = 12, color = "gray45",
