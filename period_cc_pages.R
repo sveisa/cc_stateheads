@@ -1,20 +1,5 @@
 # ── Climate Change paragraphs across speeches: change over time ──────────────
-# Visualises (a) frequency and (b) placement of CC paragraphs per period.
-#
-# Design notes
-# ────────────
-# • The "mean position" of CC paragraphs is misleading when CC tends to land
-#   at the start AND/OR end of a speech — a mean would push it to the middle.
-#   So we never collapse position to a single number. Instead we:
-#     1. Compute each paragraph's relative position by *cumulative word count*
-#        within its speech (start word .. end word)/(total words).
-#     2. Allocate each paragraph's words across N=40 bins along [0,1].
-#     3. Aggregate per period: share of words in each bin that are CC.
-#   The result reads as a "page" (40 stacked lines) where each line shows
-#   how much of the speech-at-that-position is CC.
-#
-# • A small companion ridge plot shows the raw density of CC paragraph
-#   positions per period — bimodality (front + end) becomes visible directly.
+# Visualises frequency and placement of CC paragraphs per period.
 #
 # Run from a working dir that can write PNGs.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -26,17 +11,15 @@ library(scales)
 
 CSV_URL    <- "https://raw.githubusercontent.com/sveisa/cc_stateheads/refs/heads/main/overview_cleaned2.csv"
 
-# Period cutoffs: edit to taste. Each entry = lower bound of a period.
-# Default: 3 ~equal slices of 1997-2024.
 period_breaks <- c(1997, 2007, 2016)
-period_max    <- 2024     # upper bound of last period (inclusive)
+period_max    <- 2024      
 
-N_BINS  <- 40             # vertical "lines" per page
-ROW_GAP <- 0.25           # whitespace between lines (0 = none, 0.5 = half row)
-CC_COL      <- "#006064"  # dark teal:    climate change (drawn from the LEFT)
-CRISIS_COL  <- "#BF360C"  # burnt orange: local crisis   (drawn from the RIGHT)
-BG_COL      <- "#e5e7eb"  # light gray for line backing
-PAGE_BG <- "#fdfdfc"      # paper colour
+N_BINS  <- 40             
+ROW_GAP <- 0.25           
+CC_COL      <- "#006064"  
+CRISIS_COL  <- "#BF360C"  
+BG_COL      <- "#e5e7eb"  
+PAGE_BG <- "#fdfdfc"      
 PAPER_BORDER <- "#cfcfcf"
 
 # ── 2. Load & prep ───────────────────────────────────────────────────────────
@@ -49,8 +32,6 @@ df <- df_raw %>%
     about_cc   = as.integer(about_cc),
     wc         = as.integer(wc),
     year       = as.integer(year),
-    # Local-crisis flag: paragraphs tagged is_crisis == "yes" that are NOT CC
-    # (so the two categories on the page are mutually exclusive).
     is_crisis_bin = as.integer(is_crisis == "yes" & about_cc == 0)
   ) %>%
   arrange(speech_id, graf_num) %>%
@@ -66,7 +47,6 @@ df <- df_raw %>%
   ) %>%
   ungroup()
 
-# Assign period
 period_labels <- paste0(
   period_breaks, "–",
   c(period_breaks[-1] - 1, period_max)
@@ -88,17 +68,15 @@ freq <- df %>%
     n_grafs            = n(),
     n_cc_grafs         = sum(about_cc),
     n_crisis_grafs     = sum(is_crisis_bin),
-    pct_cc_grafs       = n_cc_grafs     / n_grafs * 100,
+    pct_cc_grafs       = n_cc_grafs      / n_grafs * 100,
     pct_crisis_grafs   = n_crisis_grafs / n_grafs * 100,
     pct_cc_words       = sum(wc[about_cc == 1])      / sum(wc) * 100,
     pct_crisis_words   = sum(wc[is_crisis_bin == 1]) / sum(wc) * 100,
     pct_speeches_cc    = n_speeches_with_cc / n_speeches * 100,
     .groups = "drop"
   )
-print(freq)
 
 # ── 4. Page composite: words-in-bin × CC share, per period ───────────────────
-# For each paragraph, distribute its wc across the bins it overlaps.
 
 bin_edges <- seq(0, 1, length.out = N_BINS + 1)
 
@@ -109,7 +87,7 @@ graf_bins <- df %>%
     g <- .
     span <- pmax(g$pos_end - g$pos_start, 1e-9)
     overlap <- pmax(0, pmin(g$pos_end, bin_edges[-1]) -
-                       pmax(g$pos_start, bin_edges[-length(bin_edges)]))
+                      pmax(g$pos_start, bin_edges[-length(bin_edges)]))
     tibble(
       period       = g$period,
       bin          = seq_len(N_BINS),
@@ -129,16 +107,15 @@ period_bins <- graf_bins %>%
     .groups  = "drop"
   ) %>%
   mutate(
-    pct_cc     = ifelse(words > 0, cc_words     / words, 0),
+    pct_cc     = ifelse(words > 0, cc_words      / words, 0),
     pct_crisis = ifelse(words > 0, crisis_words / words, 0),
-    bin_top    = bin - 1,            # 0..N_BINS-1, top = start of speech
+    bin_top    = bin - 1, 
     bin_bottom = bin
   )
 
-# ── 5. Plot 1: page-style composite ──────────────────────────────────────────
+# ── 5. Plot 1: page-style composite (CC Only) ────────────────────────────────
 
-# X coords: lines drawn on a [0,1] line span; CC segment length = pct_cc
-LINE_PAD <- 0.05      # left/right margin inside the page
+LINE_PAD <- 0.05      
 LINE_X0  <- LINE_PAD
 LINE_X1  <- 1 - LINE_PAD
 LINE_LEN <- LINE_X1 - LINE_X0
@@ -149,76 +126,45 @@ period_bins <- period_bins %>%
     crisis_x0 = LINE_X1 - LINE_LEN * pct_crisis
   )
 
-# Long-format bin data so we can use a single geom_rect with a fill legend.
-plot_bins <- bind_rows(
-  period_bins %>%
-    transmute(period, bin,
-              category = "Climate change",
-              xmin = LINE_X0,
-              xmax = cc_x1,
-              pct  = pct_cc),
-  period_bins %>%
-    transmute(period, bin,
-              category = "Local crisis",
-              xmin = crisis_x0,
-              xmax = LINE_X1,
-              pct  = pct_crisis)
-) %>%
-  mutate(category = factor(category,
-                           levels = c("Climate change", "Local crisis"))) %>%
-  filter(pct > 0)
-
-cat_pal <- c("Climate change" = CC_COL, "Local crisis" = CRISIS_COL)
-
-# Page outlines
 pages <- freq %>%
   mutate(
     label = sprintf(
-      "%s\n%d speeches · %d paragraphs\n%.1f%% CC  ·  %.1f%% local crisis",
-      period, n_speeches, n_grafs, pct_cc_grafs, pct_crisis_grafs
+      "%s\n%d speeches · %d paragraphs\n%.1f%% CC",
+      period, n_speeches, n_grafs, pct_cc_grafs
     )
   )
 
 p_pages <- ggplot() +
-  # Paper rectangle
   geom_rect(
     data = pages,
     aes(xmin = 0, xmax = 1, ymin = 0, ymax = N_BINS),
     fill = PAGE_BG, color = PAPER_BORDER, linewidth = 0.3
   ) +
-  # Background gray line for every bin (full width)
   geom_rect(
     data = period_bins,
     aes(xmin = LINE_X0, xmax = LINE_X1,
         ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
     fill = BG_COL
   ) +
-  # CC (left) + Local crisis (right) overlays, both keyed to the legend
   geom_rect(
-    data = plot_bins,
-    aes(xmin = xmin, xmax = xmax,
-        ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP,
-        fill = category)
+    data = period_bins %>% filter(pct_cc > 0),
+    aes(xmin = LINE_X0, xmax = cc_x1,
+        ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
+    fill = CC_COL
   ) +
-  scale_fill_manual(values = cat_pal, name = NULL) +
-  scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +   # top = start
+  scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +   
   scale_x_continuous(expand = expansion(add = 0)) +
   facet_wrap(~ period, nrow = 1,
              labeller = as_labeller(setNames(pages$label, pages$period))) +
   coord_fixed(ratio = 1 / N_BINS * 1.4) +
-  guides(fill = guide_legend(override.aes = list(color = NA))) +
   labs(
-    title    = "Climate change vs. local crisis in speeches: how often, and where",
-    subtitle = "Each 'page' = one period. Top = speech start, bottom = speech end.\nGreen grows from the LEFT = share of words at that position about climate change.\nRed grows from the RIGHT = share about a local crisis (excluding CC paragraphs).",
+    title    = "Climate change in speeches: how often, and where",
+    subtitle = "Each 'page' = one period. Top = speech start, bottom = speech end.\nGreen grows from the LEFT = share of words at that position about climate change.",
     caption  = sprintf("N = %d paragraphs, %d speeches, %d–%d", nrow(df),
                        n_distinct(df$speech_id), min(df$year), max(df$year))
   ) +
   theme_void(base_family = "Georgia") +
   theme(
-    legend.position    = "top",
-    legend.justification = c(0, 1),
-    legend.margin      = margin(0, 0, 6, 0),
-    legend.text        = element_text(size = 9, color = "gray25"),
     plot.title       = element_text(size = 13, color = "gray10",
                                     margin = margin(b = 4)),
     plot.subtitle    = element_text(size = 9.5, color = "gray45",
@@ -232,13 +178,12 @@ p_pages <- ggplot() +
     plot.background  = element_rect(fill = PAGE_BG, color = NA)
   )
 
-# ── 6. Single-period pages (one hi-res PNG per period, for slides) ───────────
+# ── 6. Single-period pages (CC Only) ─────────────────────────────────────────
 
 make_single_page <- function(per) {
   pb   <- period_bins %>% filter(period == per)
-  pb_long <- plot_bins %>% filter(period == per)
   meta <- pages %>% filter(period == per)
-
+  
   ggplot() +
     annotate("rect",
              xmin = 0, xmax = 1, ymin = 0, ymax = N_BINS,
@@ -250,29 +195,23 @@ make_single_page <- function(per) {
       fill = BG_COL
     ) +
     geom_rect(
-      data = pb_long,
-      aes(xmin = xmin, xmax = xmax,
-          ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP,
-          fill = category)
+      data = pb %>% filter(pct_cc > 0),
+      aes(xmin = LINE_X0, xmax = cc_x1,
+          ymin = bin - 1 + ROW_GAP, ymax = bin - ROW_GAP),
+      fill = CC_COL
     ) +
-    scale_fill_manual(values = cat_pal, name = NULL) +
     scale_y_reverse(expand = expansion(add = c(0.5, 0.5))) +
     scale_x_continuous(expand = expansion(add = 0)) +
     coord_fixed(ratio = 1 / N_BINS * 1.4) +
-    guides(fill = guide_legend(override.aes = list(color = NA))) +
     labs(
       title    = as.character(per),
-      subtitle = sprintf("%d speeches · %d paragraphs · %.1f%% CC · %.1f%% local crisis",
+      subtitle = sprintf("%d speeches · %d paragraphs · %.1f%% CC",
                          meta$n_speeches, meta$n_grafs,
-                         meta$pct_cc_grafs, meta$pct_crisis_grafs),
-      caption  = "Top = speech start. Green from left = climate change. Red from right = local crisis."
+                         meta$pct_cc_grafs),
+      caption  = "Top = speech start. Green from left = climate change."
     ) +
     theme_void(base_family = "Georgia") +
     theme(
-      legend.position = "top",
-      legend.justification = c(0, 1),
-      legend.text     = element_text(size = 11, color = "gray25"),
-      legend.margin   = margin(0, 0, 8, 0),
       plot.title      = element_text(size = 22, color = "gray10",
                                      margin = margin(b = 4), face = "bold"),
       plot.subtitle   = element_text(size = 12, color = "gray45",
@@ -291,15 +230,17 @@ for (per in period_labels) {
   message("Saved: ", fname)
 }
 
-# ── 7. Combined three-period page (1 image with all three) ───────────────────
+# ── 7. Combined three-period page ────────────────────────────────────────────
 
 ggsave("cc_pages_by_period.png", p_pages,
        width = 9, height = 7, dpi = 300, bg = PAGE_BG)
 message("Saved: cc_pages_by_period.png")
 
-# ── 8. Crowding-out: words time series ───────────────────────────────────────
+# ── 8. Crowding-out: words time series (Smooth Only) ─────────────────────────
 
-YEAR_BREAKS <- seq(1998, 2024, 4)   # x-axis tick years
+YEAR_BREAKS <- seq(1998, 2024, 4)
+
+cat_pal <- c("Climate change" = CC_COL, "Local crisis" = CRISIS_COL)
 
 yearly_words <- df %>%
   group_by(year) %>%
@@ -313,42 +254,37 @@ yearly_words <- df %>%
 
 p_timeseries_words <- ggplot(yearly_words,
                              aes(x = year, y = pct, color = category)) +
-  geom_line(linewidth = 0.5, alpha = 0.4) +
   geom_smooth(method = "loess", se = FALSE, span = 0.55, linewidth = 1.5) +
   scale_color_manual(values = cat_pal, name = NULL) +
   scale_y_continuous(labels = function(z) paste0(z, "%"),
-                     expand = expansion(mult = c(0.02, 0.08))) +
-  scale_x_continuous(breaks = YEAR_BREAKS) +
+                     expand = expansion(mult = c(0.01, 0.04))) + # Tighter vertical padding
+  scale_x_continuous(breaks = YEAR_BREAKS,
+                     expand = expansion(mult = c(0.01, 0.01))) + # Tighter horizontal padding
   labs(
-    title    = "Climate change vs. local crisis over time",
-    subtitle = "Yearly share of all speech words. Thin lines = annual, thick = LOESS smooth.\nIf crisis rises while climate change stays flat or falls, that's crowding out.",
+    title    = "Climate change vs. local crisis talk — smoothed annual share of all speech words.",
     x = NULL, y = "Share of speech words"
   ) +
   theme_minimal(base_family = "Georgia", base_size = 11) +
   theme(
     legend.position    = "top",
     legend.justification = c(0, 1),
-    legend.margin      = margin(0, 0, 6, 0),
+    legend.margin      = margin(0, 0, 0, 0),       # Removed standard legend margin
+    legend.box.margin  = margin(0, 0, -5, 0),      # Pulls the chart slightly up into the legend area
     plot.title         = element_text(size = 13, color = "gray10",
                                       margin = margin(b = 4)),
-    plot.subtitle      = element_text(size = 9.5, color = "gray45",
-                                      margin = margin(b = 14), lineheight = 1.2),
     panel.grid.minor   = element_blank(),
     panel.grid.major.x = element_line(color = "gray92", linewidth = 0.3),
     panel.grid.major.y = element_line(color = "gray92", linewidth = 0.3),
     plot.background    = element_rect(fill = PAGE_BG, color = NA),
-    plot.margin        = margin(18, 22, 14, 18)
+    plot.margin        = margin(5, 10, 5, 5)       # Drastically reduced from (18, 22, 14, 18)
   )
 
 ggsave("cc_crowding_timeseries_words.png", p_timeseries_words,
        width = 9, height = 5, dpi = 300, bg = PAGE_BG)
 message("Saved: cc_crowding_timeseries_words.png")
 
-# ── 9. Crowding-out: stacked paragraphs (with dotted connectors) ─────────────
-# 100%-stacked area showing the share of paragraphs in each category per year,
-# plus dotted vertical guides at each x-axis tick year — these run from the top
-# of the Climate-change band to the bottom of the Local-crisis band, drawing
-# attention to the "Other" gap that gets squeezed when CC and crisis grow.
+
+# ── 9. Crowding-out: stacked paragraphs ──────────────────────────────────────
 
 stack_pal <- c("Climate change" = CC_COL,
                "Local crisis"   = CRISIS_COL,
@@ -367,57 +303,56 @@ stacked_paras <- df %>%
                 ~ . / total * 100)) %>%
   select(-total)
 
-# Connector segments at each x-axis tick: from top of CC to bottom of Crisis.
-# In the stack (bottom→top: Climate change, Other, Local crisis):
-#   top of CC band     = Climate change %
-#   bottom of Crisis   = 100 - Local crisis %
-connectors <- stacked_paras %>%
-  filter(year %in% YEAR_BREAKS) %>%
+# Pre-calculate the exact y-coordinates for each boundary
+plot_data <- stacked_paras %>%
   transmute(
     year,
-    y_cc_top      = `Climate change`,
-    y_crisis_bot  = 100 - `Local crisis`
+    y_cc_top     = `Climate change`,
+    y_other_top  = `Climate change` + `Other`,
+    y_crisis_top = 100
   )
 
-stacked_paras_long <- stacked_paras %>%
-  pivot_longer(-year, names_to = "category", values_to = "pct") %>%
-  mutate(category = factor(category,
-                           levels = c("Climate change", "Other", "Local crisis")))
-
-p_stacked_paras <- ggplot(stacked_paras_long,
-                          aes(x = year, y = pct, fill = category)) +
-  geom_area(position = "stack", color = "white", linewidth = 0.25) +
-  geom_segment(
-    data = connectors,
-    aes(x = year, xend = year, y = y_cc_top, yend = y_crisis_bot),
-    inherit.aes = FALSE,
-    linetype = "dotted", color = "gray25", linewidth = 0.5
-  ) +
+p_stacked_paras <- ggplot(plot_data, aes(x = year)) +
+  
+  # LAYER 1: The 'Other' middle band (Bottom of the sandwich)
+  geom_ribbon(aes(ymin = y_cc_top, ymax = y_other_top, fill = "Other"),
+              color = "white", linewidth = 0.25) +
+  
+  # LAYER 2: The Gridlines (Drawn OVER 'Other', but before the top/bottom colors)
+  geom_hline(yintercept = seq(0, 100, by = 25), color = "gray92", linewidth = 0.3) +
+  geom_vline(xintercept = YEAR_BREAKS, color = "gray92", linewidth = 0.3) +
+  
+  # LAYER 3: The solid colors (Drawn ON TOP of the gridlines to hide them)
+  geom_ribbon(aes(ymin = 0, ymax = y_cc_top, fill = "Climate change"),
+              color = "white", linewidth = 0.25) +
+  geom_ribbon(aes(ymin = y_other_top, ymax = y_crisis_top, fill = "Local crisis"),
+              color = "white", linewidth = 0.25) +
+  
+  # Scale and Labels
   scale_fill_manual(values = stack_pal, name = NULL,
-                    breaks = c("Climate change", "Local crisis", "Other")) +
+                    breaks = c("Local crisis", "Other", "Climate change")) +
   scale_y_continuous(labels = function(z) paste0(z, "%"), expand = c(0, 0)) +
   scale_x_continuous(breaks = YEAR_BREAKS, expand = c(0, 0)) +
   labs(
     title    = "What share of speech paragraphs goes to each category, year by year?",
-    subtitle = "100%-stacked. Teal and orange squeeze the gray; if they trade space, that's crowding out.\nDotted lines mark the gap between CC and crisis at each labeled year.",
     x = NULL, y = NULL
   ) +
   theme_minimal(base_family = "Georgia", base_size = 11) +
   theme(
     legend.position    = "top",
     legend.justification = c(0, 1),
-    legend.margin      = margin(0, 0, 6, 0),
+    legend.margin      = margin(0, 0, 0, 0),
+    legend.box.margin  = margin(0, 0, -5, 0),
     plot.title         = element_text(size = 13, color = "gray10",
                                       margin = margin(b = 4)),
-    plot.subtitle      = element_text(size = 9.5, color = "gray45",
-                                      margin = margin(b = 14), lineheight = 1.2),
+    # Disable default theme gridlines so we don't double-draw over our manual ones
     panel.grid         = element_blank(),
     axis.text.y        = element_text(color = "gray45"),
     axis.text.x        = element_text(color = "gray35"),
     plot.background    = element_rect(fill = PAGE_BG, color = NA),
-    plot.margin        = margin(18, 22, 14, 18)
+    plot.margin        = margin(5, 10, 5, 5)
   )
 
-ggsave("cc_crowding_stacked_paragraphs.png", p_stacked_paras,
+ggsave("cc_crowding_stacked_paragraphs_v5.png", p_stacked_paras,
        width = 9, height = 5, dpi = 300, bg = PAGE_BG)
-message("Saved: cc_crowding_stacked_paragraphs.png")
+message("Saved: cc_crowding_stacked_paragraphs_v5.png")
