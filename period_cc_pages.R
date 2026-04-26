@@ -295,7 +295,116 @@ for (per in period_labels) {
   message("Saved: ", fname)
 }
 
-# ── 8. Save combined views ───────────────────────────────────────────────────
+# ── 8. Anchored paragraph positions: 1st .. 5th  and  5th-from-last .. last ──
+# How often is the (e.g.) penultimate paragraph about climate change?
+# We anchor to the *start* of each speech (1st, 2nd, 3rd, 4th, 5th paragraph)
+# and to the *end* (5th-from-last, 4th-from-last, ..., penultimate, last).
+# Speeches with fewer paragraphs than ANCHOR_N simply don't contribute to the
+# missing positions; they DO contribute to anchors that exist for them.
+
+ANCHOR_N <- 5
+
+anchor_df <- df %>%
+  group_by(speech_id, period) %>%
+  mutate(
+    from_start = graf_num,
+    from_end   = n() - graf_num + 1
+  ) %>%
+  ungroup()
+
+start_anchor <- anchor_df %>%
+  filter(from_start <= ANCHOR_N) %>%
+  group_by(period, k = from_start) %>%
+  summarise(
+    n_speeches = n(),
+    n_cc       = sum(about_cc),
+    pct_cc     = n_cc / n_speeches * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    side       = "from start",
+    x_pos      = k,
+    label      = c("1st", "2nd", "3rd", "4th", "5th")[k]
+  )
+
+end_anchor <- anchor_df %>%
+  filter(from_end <= ANCHOR_N) %>%
+  group_by(period, k = from_end) %>%
+  summarise(
+    n_speeches = n(),
+    n_cc       = sum(about_cc),
+    pct_cc     = n_cc / n_speeches * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(
+    side       = "from end",
+    x_pos      = ANCHOR_N + 2 + (ANCHOR_N - k),  # 5th-last .. last placed left-to-right
+    label      = c("last", "penult.", "3rd-last", "4th-last", "5th-last")[k]
+  )
+
+anchor_all <- bind_rows(start_anchor, end_anchor) %>%
+  mutate(period = factor(period, levels = period_labels))
+
+# X-axis labels in plotting order
+axis_breaks <- anchor_all %>%
+  distinct(x_pos, label) %>%
+  arrange(x_pos)
+
+# Period palette: light-to-dark green so progression reads visually
+period_pal <- c("#a3c4b8", "#4f8a76", "#175E54")
+names(period_pal) <- period_labels
+
+p_anchor <- ggplot(anchor_all, aes(x = x_pos, y = pct_cc,
+                                   color = period, group = period)) +
+  # Vertical separator between the "from start" block and "from end" block
+  geom_vline(xintercept = ANCHOR_N + 1, color = "gray85",
+             linetype = "dashed", linewidth = 0.4) +
+  geom_line(linewidth = 0.9, alpha = 0.95) +
+  geom_point(size = 2.6) +
+  scale_x_continuous(
+    breaks = axis_breaks$x_pos,
+    labels = axis_breaks$label,
+    expand = expansion(add = 0.4)
+  ) +
+  scale_y_continuous(
+    labels = function(z) paste0(z, "%"),
+    expand = expansion(mult = c(0.02, 0.08))
+  ) +
+  scale_color_manual(values = period_pal, name = NULL) +
+  labs(
+    title    = "How often is each paragraph about climate change?",
+    subtitle = "Anchored from start (1st–5th paragraph) and from end (5th-from-last … last).\nDenominator = speeches that have a paragraph at that position; numerator = speeches whose paragraph there is about CC.",
+    x = NULL, y = "Share of speeches"
+  ) +
+  theme_minimal(base_family = "Georgia", base_size = 11) +
+  theme(
+    legend.position    = "top",
+    legend.justification = c(0, 1),
+    legend.margin      = margin(0, 0, 4, 0),
+    plot.title         = element_text(size = 13, color = "gray10",
+                                      margin = margin(b = 4)),
+    plot.subtitle      = element_text(size = 9.5, color = "gray45",
+                                      margin = margin(b = 14), lineheight = 1.2),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.x = element_blank(),
+    panel.grid.major.y = element_line(color = "gray90", linewidth = 0.3),
+    axis.text.x        = element_text(color = "gray25", size = 9.5),
+    axis.text.y        = element_text(color = "gray45"),
+    axis.title.y       = element_text(color = "gray45", size = 9),
+    plot.background    = element_rect(fill = PAGE_BG, color = NA),
+    plot.margin        = margin(18, 22, 14, 18)
+  )
+
+ggsave("cc_by_paragraph_anchor.png", p_anchor,
+       width = 10, height = 5, dpi = 300, bg = PAGE_BG)
+message("Saved: cc_by_paragraph_anchor.png")
+
+# Print the underlying numbers for reference
+print(anchor_all %>%
+        select(period, side, label, n_speeches, n_cc, pct_cc) %>%
+        arrange(period, factor(side, levels = c("from start","from end")), label))
+
+# ── 9. Save combined views ───────────────────────────────────────────────────
 
 ggsave("cc_pages_by_period.png",   p_pages,   width = 9, height = 7,   dpi = 300, bg = PAGE_BG)
 ggsave("cc_density_by_period.png", p_density, width = 9, height = 4.5, dpi = 300, bg = PAGE_BG)
