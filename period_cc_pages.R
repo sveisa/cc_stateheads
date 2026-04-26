@@ -349,7 +349,180 @@ for (per in period_labels) {
   message("Saved: ", fname)
 }
 
-# ── 8. Save combined views ───────────────────────────────────────────────────
+# ── 8. Crowding-out experiments ──────────────────────────────────────────────
+# Three different angles on the same question: does local-crisis content
+# compete with climate-change content for space in the speech?
+
+# Period palette: light → dark green so progression reads visually
+period_pal <- c("#a3c4b8", "#4f8a76", "#175E54")
+names(period_pal) <- period_labels
+
+# (A) Annual time series ------------------------------------------------------
+yearly <- df %>%
+  group_by(year) %>%
+  summarise(
+    `Climate change` = sum(wc[about_cc == 1])      / sum(wc) * 100,
+    `Local crisis`   = sum(wc[is_crisis_bin == 1]) / sum(wc) * 100,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(-year, names_to = "category", values_to = "pct") %>%
+  mutate(category = factor(category, levels = c("Climate change", "Local crisis")))
+
+p_timeseries <- ggplot(yearly, aes(x = year, y = pct, color = category)) +
+  geom_line(linewidth = 0.5, alpha = 0.4) +
+  geom_smooth(method = "loess", se = FALSE, span = 0.55, linewidth = 1.5) +
+  scale_color_manual(values = cat_pal, name = NULL) +
+  scale_y_continuous(labels = function(z) paste0(z, "%"),
+                     expand = expansion(mult = c(0.02, 0.08))) +
+  scale_x_continuous(breaks = seq(1998, 2024, 4)) +
+  labs(
+    title    = "Climate change vs. local crisis over time",
+    subtitle = "Yearly share of all speech words. Thin lines = annual, thick = LOESS smooth.\nIf crisis rises while climate change stays flat or falls, that's crowding out.",
+    x = NULL, y = "Share of speech words"
+  ) +
+  theme_minimal(base_family = "Georgia", base_size = 11) +
+  theme(
+    legend.position    = "top",
+    legend.justification = c(0, 1),
+    legend.margin      = margin(0, 0, 6, 0),
+    plot.title         = element_text(size = 13, color = "gray10",
+                                      margin = margin(b = 4)),
+    plot.subtitle      = element_text(size = 9.5, color = "gray45",
+                                      margin = margin(b = 14), lineheight = 1.2),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.x = element_line(color = "gray92", linewidth = 0.3),
+    panel.grid.major.y = element_line(color = "gray92", linewidth = 0.3),
+    plot.background    = element_rect(fill = PAGE_BG, color = NA),
+    plot.margin        = margin(18, 22, 14, 18)
+  )
+
+ggsave("cc_crowding_timeseries.png", p_timeseries,
+       width = 9, height = 5, dpi = 300, bg = PAGE_BG)
+message("Saved: cc_crowding_timeseries.png")
+
+# (B) Speech-level scatter ----------------------------------------------------
+# One dot per speech: % crisis words on x, % CC words on y.
+# A negative slope = within a speech, more crisis ↔ less CC.
+
+speech_lvl <- df %>%
+  group_by(speech_id, year, period) %>%
+  summarise(
+    pct_cc     = sum(wc[about_cc == 1])      / sum(wc) * 100,
+    pct_crisis = sum(wc[is_crisis_bin == 1]) / sum(wc) * 100,
+    n_words    = sum(wc),
+    .groups = "drop"
+  )
+
+# Fit overall linear model for annotation
+fit <- lm(pct_cc ~ pct_crisis, data = speech_lvl)
+slope <- coef(fit)[["pct_crisis"]]
+r     <- cor(speech_lvl$pct_cc, speech_lvl$pct_crisis)
+
+p_scatter <- ggplot(speech_lvl,
+                    aes(x = pct_crisis, y = pct_cc,
+                        color = period, size = n_words)) +
+  geom_jitter(alpha = 0.55, width = 0.4, height = 0.4) +
+  geom_smooth(aes(group = 1), method = "lm", se = TRUE,
+              color = "gray25", fill = "gray85", linewidth = 0.7) +
+  scale_color_manual(values = period_pal, name = NULL) +
+  scale_size_continuous(range = c(1.2, 6), guide = "none") +
+  scale_x_continuous(labels = function(z) paste0(z, "%"),
+                     expand = expansion(mult = c(0.02, 0.05))) +
+  scale_y_continuous(labels = function(z) paste0(z, "%"),
+                     expand = expansion(mult = c(0.02, 0.08))) +
+  labs(
+    title    = "One dot = one speech",
+    subtitle = sprintf(
+      "Within a speech: more crisis content ↔ less climate-change content?\nLinear slope = %+.2f pp CC per +1pp crisis · Pearson r = %+.2f",
+      slope, r),
+    x = "Share of speech about local crisis",
+    y = "Share about climate change",
+    caption = "Dot size = speech length. Color = period."
+  ) +
+  theme_minimal(base_family = "Georgia", base_size = 11) +
+  theme(
+    legend.position    = "top",
+    legend.justification = c(0, 1),
+    legend.margin      = margin(0, 0, 6, 0),
+    plot.title         = element_text(size = 13, color = "gray10",
+                                      margin = margin(b = 4)),
+    plot.subtitle      = element_text(size = 9.5, color = "gray45",
+                                      margin = margin(b = 14), lineheight = 1.2),
+    plot.caption       = element_text(size = 8, color = "gray60", hjust = 0,
+                                      margin = margin(t = 10)),
+    panel.grid.minor   = element_blank(),
+    panel.grid.major.x = element_line(color = "gray92", linewidth = 0.3),
+    panel.grid.major.y = element_line(color = "gray92", linewidth = 0.3),
+    plot.background    = element_rect(fill = PAGE_BG, color = NA),
+    plot.margin        = margin(18, 22, 14, 18)
+  )
+
+ggsave("cc_crowding_scatter.png", p_scatter,
+       width = 8, height = 6, dpi = 300, bg = PAGE_BG)
+message("Saved: cc_crowding_scatter.png")
+
+# (C) 100% stacked area -------------------------------------------------------
+stacked_data <- df %>%
+  group_by(year) %>%
+  summarise(
+    `Climate change` = sum(wc[about_cc == 1]),
+    `Local crisis`   = sum(wc[is_crisis_bin == 1]),
+    `Other`          = sum(wc[about_cc == 0 & is_crisis_bin == 0]),
+    total            = sum(wc),
+    .groups = "drop"
+  ) %>%
+  mutate(across(c(`Climate change`, `Local crisis`, `Other`),
+                ~ . / total * 100)) %>%
+  select(-total) %>%
+  pivot_longer(-year, names_to = "category", values_to = "pct") %>%
+  mutate(category = factor(category,
+                           levels = c("Climate change", "Other", "Local crisis")))
+
+stack_pal <- c("Climate change" = CC_COL,
+               "Local crisis"   = CRISIS_COL,
+               "Other"          = "#ececec")
+
+p_stacked <- ggplot(stacked_data,
+                    aes(x = year, y = pct, fill = category)) +
+  geom_area(position = "stack", color = "white", linewidth = 0.25) +
+  scale_fill_manual(values = stack_pal, name = NULL,
+                    breaks = c("Climate change", "Local crisis", "Other")) +
+  scale_y_continuous(labels = function(z) paste0(z, "%"),
+                     expand = c(0, 0)) +
+  scale_x_continuous(breaks = seq(1998, 2024, 4),
+                     expand = c(0, 0)) +
+  labs(
+    title    = "What share of speech words goes to each category, year by year?",
+    subtitle = "100%-stacked. Green and red squeeze the gray; if green and red trade space, that's crowding out.",
+    x = NULL, y = NULL
+  ) +
+  theme_minimal(base_family = "Georgia", base_size = 11) +
+  theme(
+    legend.position    = "top",
+    legend.justification = c(0, 1),
+    legend.margin      = margin(0, 0, 6, 0),
+    plot.title         = element_text(size = 13, color = "gray10",
+                                      margin = margin(b = 4)),
+    plot.subtitle      = element_text(size = 9.5, color = "gray45",
+                                      margin = margin(b = 14), lineheight = 1.2),
+    panel.grid          = element_blank(),
+    axis.text.y        = element_text(color = "gray45"),
+    axis.text.x        = element_text(color = "gray35"),
+    plot.background    = element_rect(fill = PAGE_BG, color = NA),
+    plot.margin        = margin(18, 22, 14, 18)
+  )
+
+ggsave("cc_crowding_stacked.png", p_stacked,
+       width = 9, height = 5, dpi = 300, bg = PAGE_BG)
+message("Saved: cc_crowding_stacked.png")
+
+# Print top of speech_lvl + summary stats for reference
+cat("\nCrowding-out fit (speech level):\n")
+print(summary(fit)$coefficients)
+cat(sprintf("Pearson r(crisis%%, CC%%) = %+.3f over %d speeches\n\n",
+            r, nrow(speech_lvl)))
+
+# ── 9. Save combined views ───────────────────────────────────────────────────
 
 ggsave("cc_pages_by_period.png",   p_pages,   width = 9, height = 7,   dpi = 300, bg = PAGE_BG)
 ggsave("cc_density_by_period.png", p_density, width = 9, height = 4.5, dpi = 300, bg = PAGE_BG)
