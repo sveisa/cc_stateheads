@@ -33,7 +33,7 @@ CSV_URL    <- "https://raw.githubusercontent.com/sveisa/cc_stateheads/refs/heads
 period_breaks <- c(1997, 2007, 2016)
 period_max    <- 2024     # upper bound of last period (inclusive)
 
-N_BINS  <- 40             # vertical "lines" per page
+N_BINS  <- 10             # vertical "lines" per page
 CC_COL  <- "#175E54"      # forest green (matches your React palette)
 BG_COL  <- "#e5e7eb"      # light gray for non-CC line backing
 PAGE_BG <- "#fdfdfc"      # paper colour
