@@ -1,0 +1,10 @@
+Seed The Narrative Early and Often: How “Journalism” Works, According To CNET [Media Transparency]
+
+Today in clown world a new program was developed to detect “offensive behavior” and “cyber-aggression.” These subjective terms are used to stifle any form of dissent. Users already have all the tools they need to decide for themselves if something is “offensive” or “aggressive” by blocking, muting, or ignoring that type of content. Unfortunately this type of individual sovereignty is unimaginable to the academics who built this tool. They want Twitter to use it to delete “abusive accounts.”
+ Its algorithms classify two specific types of offensive online behaviour – cyber-bullying and cyber-aggression. Researchers at Binghamton University say it could be used to help find and delete abusive accounts.
+ Cyber-bullying has become a widespread issue, with one in three teenagers living in fear of online abuse, according to charity Ditch the Label. Jeremy Blackburn, a computer scientist on the research team, said the algorithms used information from Twitter profiles and looked for connections between offensive accounts.
+ “We built crawlers – programs that collect data from Twitter via a variety of mechanisms,” he said.
+ “We gathered tweets of Twitter users, their profiles, as well as [social-]network-related things, like who they follow and who follows them.”In a nutshell, the algorithms ‘learn’ how to tell the difference between bullies and typical users by weighing certain features as they are shown more examples.”
+ Social-media platforms have come under increased pressure to do more to protect their users from harmful content. Twitter told the BBC in a statement: “Our priority is ensuring our service is healthy, and free of abuse or other types of content that can make others afraid to speak up, or put themselves in vulnerable situations.”A group of celebrities and campaigners recently backed a new guide from Countering Digital Hate on how to deal with online abuse.
+ Source:
+ New algorithms aim to stamp out abuse on Twitter – BBC News
