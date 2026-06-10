@@ -59,7 +59,7 @@ def decode_abstract(inverted_index):
     return " ".join(w for _, w in positions)
 
 def fetch_works(source_id, journal_name):
-    filter_str = f"primary_location.source.id:{source_id},publication_year:>=1990,type:article"
+    filter_str = f"primary_location.source.id:{source_id},from_publication_date:1990-01-01,type:article"
     params = {
         "filter": filter_str,
         "per_page": 200,
