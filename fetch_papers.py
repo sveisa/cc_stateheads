@@ -5,7 +5,7 @@ import sys
 
 MAILTO = "isak.ladegaard@gmail.com"
 BASE_URL = "https://api.openalex.org"
-OUTPUT_FILE = "/home/user/cc_stateheads/sociology_papers.csv"
+OUTPUT_FILE = "sociology_papers.csv"
 
 JOURNALS = [
     "American Sociological Review",
