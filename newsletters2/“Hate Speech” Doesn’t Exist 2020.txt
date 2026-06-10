@@ -1,0 +1,10 @@
+“Hate Speech” Doesn’t Exist
+
+https://www.youtube.com/watch?v=XaCMME_I06s&t=1s The morally superior tech elite at Google allegedly used facial recognition technology to target people with “dark skin” in exchange for $5 gift cards.
+ Facial recognition technology’s failures when it comes to accurately identifying people of color have been well documented and much criticized . But an attempt by Google to improve its facial recognition algorithms by collecting data from people with dark skin is raising further concerns about the ethics of the data harvesting.
+ Google has been using subcontracted workers to collect face scans from members of the public in exchange for $5 gift cards, according to a report from the New York Daily News . The face scan collection project had been previously reported , but anonymous sources described unethical and deceptive practices to the Daily News.
+ The subcontracted workers were employed by staffing firm Randstad but directed by Google managers, according to the report. They were instructed to target people with “darker skin tones” and those who would be more likely to be enticed by the $5 gift card, including homeless people and college students.
+ “We’re taking these claims seriously and investigating them,” a Google spokesperson said in a statement. “The allegations regarding truthfulness and consent are in violation of our requirements for volunteer research studies and the training that we provided.”
+ The spokesperson added that the “collection of face samples for machine learning training” were intended to “build fairness” into the “face unlock feature” for the company’s new phone, Pixel 4.
+ “It’s critical we have a diverse sample, which is an important part of building an inclusive product,” the spokesperson said, adding that the face unlock feature will provide users with “a powerful new security measure”.
+ Source
