@@ -18,7 +18,7 @@ BATCH_SIZE = 256
 
 def main():
     print(f"Loading CSV: {CSV_PATH}")
-    df = pd.read_csv(CSV_PATH, sep="\t")
+    df = pd.read_csv(CSV_PATH)
     print(f"Rows: {len(df)}")
 
     df = df.dropna(subset=["abstract"]).reset_index(drop=True)
