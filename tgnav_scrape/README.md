@@ -79,3 +79,36 @@ Known limits:
   the July 2026 site, so a channel can be placed in a category as it stands today,
   not historically. 112 channels that are live today are linked from no listing
   page at all and show as uncategorised.
+
+## Merging into the airport-channel research list
+
+`04_merge_into_workbook.py` takes the existing *List of Telegram Channels / Blogs / Forums*
+workbook (exported as .xlsx) and appends the TGNAV channels it does not already contain.
+`03_channel_metadata.py` first pulls per-channel metadata (name, type, category, subscriber
+count, Telegram ID, description) out of the TGNAV detail pages into `channels_meta.csv`.
+
+The workbook already contained **66 handles**. Of the 1,038 TGNAV channels, 18 were among
+them; the remaining 1,020 were split three ways, following the inclusion criterion on the
+workbook's own *Search Method* tab (include channels that only discuss airport-related
+issues; exclude those that raise them only occasionally):
+
+| Tier | Rows | What it is | Where it goes |
+|---|---|---|---|
+| `tgnav_additions.csv` | 26 | TGNAV's own 机场测试 category, plus `@airport_chat`, `@jichang_user`, `@mfbp1`, `@paoludaily` | appended to *Telegram Channel Subscribers* (24 channels, from row 71) and *TG Discussion Groups* (2 groups, from row 24) |
+| `tgnav_needs_screening.csv` | 20 | an airport/VPN keyword in the name, but not obviously airport-focused (proxy clients, general 破解软件/白嫖 channels) | own tab, with the matched keyword shown |
+| `tgnav_all_other_channels.csv` | 974 | no airport/VPN signal — anime, wallpaper, news, software, NSFW | own tab |
+
+`tgnav_merged_workbook.xlsx` is the result: the five original tabs byte-for-byte unchanged,
+plus the appended rows and four new tabs.
+
+Two things to know about the merged workbook:
+
+- **Columns C and D are Apps Script custom functions** (`GET_TG_SUBS`, `GET_TG_LAUNCH`,
+  `GET_GRP_SUBS`, `GET_GRP_LAUNCH`). They live in a script bound to the *original*
+  spreadsheet and do not travel with a copy, so they read `#NAME?` until the script is pasted
+  into the copy (Extensions → Apps Script). The formulas are untouched, so every row fills in
+  once it is. Columns Q and R hold a value snapshot of what they last returned, and column J
+  holds TGNAV's own subscriber count for the appended rows, so no number is lost either way.
+- **Summary statistics are deliberately untouched.** `C56:C59` on *Telegram Channel
+  Subscribers* still cover only the original `C2:C55`, so the appended, unscreened rows do
+  not move the median, mean or totals.
