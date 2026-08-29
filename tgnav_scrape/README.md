@@ -112,3 +112,36 @@ Two things to know about the merged workbook:
 - **Summary statistics are deliberately untouched.** `C56:C59` on *Telegram Channel
   Subscribers* still cover only the original `C2:C55`, so the appended, unscreened rows do
   not move the median, mean or totals.
+
+## Checking removed channels against Telegram (`05_check_telegram_status.py`)
+
+TGNAV can say a channel was dropped from the directory; it cannot say whether the
+channel is dead, renamed, went private, or is simply no longer listed. Those are
+different things, and "dropped from TGNAV" is a poor proxy for any of them — 140 of
+the 212 removals happened in the single July 2026 rebuild commit, which looks like an
+editorial re-scoping rather than 140 channels going dark at once.
+
+`05_check_telegram_status.py` resolves each handle against its public `t.me` page:
+
+```sh
+pip install requests
+python3 05_check_telegram_status.py removed.csv -o removed_enriched.csv --activity
+```
+
+Output columns: `verdict` (live / gone or renamed / resolves but no counter /
+fetch error), `name_now`, `subscribers_now`, `kind` (channel, group, bot),
+`last_post` (with `--activity`), `description_now`.
+
+Notes:
+
+- No Telegram account needed — `t.me/<handle>` is a public preview page.
+- Default pacing is ~1.5 s between requests with jitter; `--activity` doubles the
+  request count by also fetching `t.me/s/<handle>` for the newest post date.
+  212 handles takes roughly 5 minutes, or 10 with `--activity`.
+- Interrupt-safe: re-run the same command and it skips rows already written.
+- A handle that no longer resolves is reported as "gone or renamed" rather than
+  "dead" — Telegram serves the same generic page in both cases, and a freed handle
+  can be re-registered by someone else, so a live result is not proof of continuity
+  either. Check `name_now` against `name_tgnav` before treating a row as the same channel.
+- This could not be run from the Claude session that produced these files: `t.me` is
+  blocked by the workspace's egress policy (403 at the proxy). Run it locally.
